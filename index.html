@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>幸運大轉盤 - 中獎概率倍兒高</title>
+    <style>
+        :root {
+            --primary-color: #ff4757;
+            --secondary-color: #2ed573;
+            --bg-color: #f1f2f6;
+            --wheel-border: #1e272e;
+        }
+
+        body {
+            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            color: #2f3542;
+        }
+
+        h1 {
+            margin-bottom: 5px;
+            color: var(--primary-color);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .subtitle {
+            margin-bottom: 30px;
+            color: #747d8c;
+            font-size: 1.1rem;
+        }
+
+        .wheel-container {
+            position: relative;
+            width: 360px;
+            height: 360px;
+            margin-bottom: 40px;
+        }
+
+        #wheelCanvas {
+            border-radius: 50%;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            border: 8px solid var(--wheel-border);
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        /* 手臂旋轉容器 */
+        .arm-wrapper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 360px;
+            height: 360px;
+            z-index: 10;
+            pointer-events: none;
+            transform: rotate(0deg); 
+        }
+
+        /* 手臂主體 */
+        .arm-pointer {
+            position: absolute;
+            top: 180px; 
+            left: 180px; 
+            width: 130px; 
+            height: 30px; 
+            background: #ffbc00; 
+            border: 3px solid #000;
+            border-radius: 0 10px 10px 0;
+            transform-origin: left center;
+            transform: translateY(-50%) rotate(-90deg);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        /* 👉 手指頭本人 */
+        .arm-pointer::after {
+            content: "👉";
+            position: absolute;
+            right: -32px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 30px;
+        }
+        
+        .center-dot {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            background-color: #1e272e;
+            border: 4px solid #fff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 11;
+        }
+
+        .btn-group {
+            display: flex;
+            align-items: center;
+            gap: 25px;
+        }
+
+        /* 🎯 按鈕精準綁定本地 cash.jpg 檔案 */
+        .cash-btn {
+            width: 150px;
+            height: 60px;
+            border-radius: 12px;
+            border: 3px solid #2ed573;
+            background-color: #2ed573;
+            background-image: url('cash.jpg'); /* 讀取你資料夾裡的圖片 */
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: cover;
+            cursor: pointer;
+            box-shadow: 0 6px 12px rgba(46, 213, 115, 0.3);
+            transition: transform 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.4rem;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+        }
+
+        .cash-btn:active {
+            transform: scale(0.95);
+        }
+
+        .cash-btn:disabled {
+            filter: grayscale(100%);
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .stop-btn {
+            padding: 12px 40px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            background-color: var(--primary-color);
+            color: white;
+            box-shadow: 0 6px 12px rgba(255, 71, 87, 0.3);
+            transition: all 0.2s ease;
+        }
+
+        .stop-btn:active {
+            transform: scale(0.95);
+        }
+
+        .stop-btn:disabled {
+            background-color: #a4b0be;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+
+        #result {
+            margin-top: 25px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            min-height: 2rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>中獎概率倍兒高</h1>
+    <div class="subtitle">🧧 盯緊指尖！點擊 CASH 開始，點擊 停！立刻急停！</div>
+
+    <div class="wheel-container">
+        <canvas id="wheelCanvas" width="360" height="360"></canvas>
+        <div class="arm-wrapper" id="armWrapper">
+            <div class="arm-pointer"></div>
+        </div>
+        <div class="center-dot"></div>
+    </div>
+
+    <div class="btn-group">
+        <button class="cash-btn" id="startBtn">CASH</button>
+        <button class="stop-btn" id="stopBtn" disabled>停！</button>
+    </div>
+
+    <div id="result"></div>
+
+    <script {nonce}>
+        const canvas = document.getElementById('wheelCanvas');
+        const ctx = canvas.getContext('2d');
+        const armWrapper = document.getElementById('armWrapper');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const resultDiv = document.getElementById('result');
+
+        const prizes = [
+            { text: '📐 數學輔教', color: '#ff6b6b' }, 
+            { text: '完！沒中！', color: '#dfe4ea' },
+            { text: '🔤 英語四合一', color: '#feca57' },
+            { text: '📖 國文課外閱讀', color: '#ff9ff3' },
+            { text: '🍎 物理習作', color: '#48dbfb' },
+            { text: '🧪 生物實驗手冊', color: '#10ac84' }
+        ];
+
+        const numSegments = prizes.length;
+        const segmentAngle = 360 / numSegments;
+        
+        let currentAngle = 0; 
+        let animationFrameId = null;
+        let isRotating = false;
+        let speed = 0;
+
+        function drawWheel() {
+            const radius = canvas.width / 2;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let i = 0; i < numSegments; i++) {
+                const startAngle = (i * segmentAngle - 90 - (segmentAngle / 2)) * Math.PI / 180;
+                const endAngle = ((i + 1) * segmentAngle - 90 - (segmentAngle / 2)) * Math.PI / 180;
+
+                ctx.beginPath();
+                ctx.moveTo(radius, radius);
+                ctx.arc(radius, radius, radius, startAngle, endAngle);
+                ctx.fillStyle = prizes[i].color;
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#ffffff';
+                ctx.stroke();
+
+                ctx.save();
+                ctx.translate(radius, radius);
+                ctx.rotate(startAngle + (segmentAngle * Math.PI / 360));
+                ctx.textAlign = "right";
+                ctx.textBaseline = "middle";
+                ctx.fillStyle = "#2f3542";
+                ctx.font = "bold 14px sans-serif";
+                ctx.fillText(prizes[i].text, radius - 25, 0);
+                ctx.restore();
+            }
+        }
+
+        window.onload = function() {
+            drawWheel();
+        };
+
+        function rotateArmLoop() {
+            currentAngle = (currentAngle + speed) % 360;
+            armWrapper.style.transform = `rotate(${currentAngle}deg)`;
+            animationFrameId = requestAnimationFrame(rotateArmLoop);
+        }
+
+        startBtn.addEventListener('click', () => {
+            if (isRotating) return;
+
+            isRotating = true;
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            resultDiv.innerHTML = "手指瘋狂運轉中... 盯緊你的目標！";
+            
+            speed = 26; 
+            rotateArmLoop();
+        });
+
+        stopBtn.addEventListener('click', () => {
+            if (!isRotating) return;
+
+            stopBtn.disabled = true;
+            cancelAnimationFrame(animationFrameId); 
+
+            let pointerAngle = (currentAngle + 30) % 360;
+            if (pointerAngle < 0) pointerAngle += 360; 
+
+            const targetIndex = Math.floor(pointerAngle / segmentAngle) % numSegments;
+            const prize = prizes[targetIndex];
+
+            if (prize.text.includes("沒中")) {
+                resultDiv.innerHTML = `<span style="color:#747d8c">😢 ${prize.text}，太可惜了！</span>`;
+            } else {
+                resultDiv.innerHTML = `🎉 手指停在：<span style="color:var(--primary-color)">${prize.text}</span> !!`;
+            }
+
+            isRotating = false;
+            startBtn.disabled = false;
+        });
+    </script>
+</body>
+</html>
